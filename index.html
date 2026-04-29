@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Arduino DHT22 IoT Simulator</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#0d1117;color:#c9d1d9;font-family:'Share Tech Mono',monospace;min-height:100vh;}
+.sim-root{max-width:900px;margin:0 auto;display:flex;flex-direction:column;min-height:100vh;}
+.topbar{background:#161b22;border-bottom:1px solid #30363d;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;}
+.topbar-title{font-family:'Orbitron',sans-serif;font-size:13px;font-weight:700;color:#58a6ff;letter-spacing:1px;}
+.status-pill{font-size:11px;padding:3px 10px;border-radius:20px;font-weight:500;transition:all 0.3s;}
+.status-pill.idle{background:#21262d;color:#8b949e;border:1px solid #30363d;}
+.status-pill.running{background:#0d2e1a;color:#3fb950;border:1px solid #3fb950;animation:pulse-border 1.5s infinite;}
+@keyframes pulse-border{0%,100%{border-color:#3fb950;}50%{border-color:#1a7a33;}}
+.main-area{display:grid;grid-template-columns:260px 1fr;flex:1;}
+@media(max-width:600px){.main-area{grid-template-columns:1fr;}.circuit-panel{display:none;}}
+.circuit-panel{background:#161b22;border-right:1px solid #30363d;padding:14px;display:flex;flex-direction:column;gap:12px;}
+.panel-label{font-size:10px;color:#8b949e;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;}
+.circuit-svg-wrap{background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:10px;display:flex;justify-content:center;}
+.slider-section{display:flex;flex-direction:column;gap:10px;}
+.slider-row{display:flex;flex-direction:column;gap:4px;}
+.slider-row label{font-size:11px;color:#8b949e;display:flex;justify-content:space-between;}
+.slider-row label span{color:#e6edf3;font-weight:500;}
+input[type=range]{width:100%;accent-color:#58a6ff;height:4px;cursor:pointer;}
+.btn-row{display:flex;gap:8px;}
+.btn{flex:1;padding:8px 0;border-radius:6px;font-family:'Share Tech Mono',monospace;font-size:12px;cursor:pointer;border:1px solid;transition:all 0.15s;font-weight:500;letter-spacing:0.5px;}
+.btn-start{background:#0d2e1a;color:#3fb950;border-color:#3fb950;}
+.btn-start:hover{background:#1a4228;}
+.btn-stop{background:#2d1a1a;color:#f85149;border-color:#f85149;}
+.btn-stop:hover{background:#3d2424;}
+.btn-clear{background:#21262d;color:#8b949e;border-color:#30363d;}
+.btn-clear:hover{background:#2d333b;}
+.right-panel{display:flex;flex-direction:column;}
+.gauges-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:#30363d;border-bottom:1px solid #30363d;}
+.gauge-card{background:#0d1117;padding:14px 16px;display:flex;flex-direction:column;align-items:center;gap:4px;}
+.gauge-label{font-size:10px;color:#8b949e;letter-spacing:1.5px;text-transform:uppercase;}
+.gauge-value{font-family:'Orbitron',sans-serif;font-size:26px;font-weight:700;transition:color 0.5s;}
+.gauge-unit{font-size:12px;color:#8b949e;}
+.gauge-bar{width:100%;height:3px;background:#21262d;border-radius:2px;overflow:hidden;margin-top:4px;}
+.gauge-fill{height:100%;border-radius:2px;transition:width 0.8s ease,background 0.5s;}
+.chart-area{padding:12px 16px 8px;border-bottom:1px solid #30363d;}
+.chart-area .panel-label{margin-bottom:8px;}
+#chartCanvas{display:block;width:100%;height:90px;}
+.serial-wrap{flex:1;display:flex;flex-direction:column;min-height:160px;}
+.serial-header{padding:8px 16px;border-bottom:1px solid #30363d;display:flex;align-items:center;justify-content:space-between;}
+.baud-info{font-size:11px;color:#8b949e;}
+.dot{width:7px;height:7px;border-radius:50%;background:#3fb950;display:inline-block;margin-right:6px;}
+.dot.off{background:#30363d;}
+#serialLog{flex:1;overflow-y:auto;padding:8px 16px 16px;font-size:12px;line-height:1.8;max-height:200px;}
+.log-line{display:flex;gap:8px;align-items:baseline;}
+.log-time{color:#484f58;font-size:10px;min-width:54px;}
+.log-text .kw{color:#79c0ff;}
+.log-text .val-temp{color:#ffa657;}
+.log-text .val-hum{color:#56d364;}
+.log-text .sym{color:#8b949e;}
+.cursor{display:inline-block;width:7px;height:13px;background:#58a6ff;animation:blink 1s infinite;vertical-align:middle;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}
+.hi-badge{font-size:11px;padding:2px 8px;border-radius:4px;margin-top:4px;}
+.hi-comfort{background:#0d2e1a;color:#3fb950;}
+.hi-moderate{background:#2d2004;color:#e3b341;}
+.hi-hot{background:#2d1a1a;color:#f85149;}
+</style>
+</head>
+<body>
+<div class="sim-root">
+  <div class="topbar">
+    <span class="topbar-title">&#9654; Wokwi Simulator — DHT22 + Arduino Uno</span>
+    <span class="status-pill idle" id="statusPill">● IDLE</span>
+  </div>
+  <div class="main-area">
+    <div class="circuit-panel">
+      <div>
+        <div class="panel-label">Circuit diagram</div>
+        <div class="circuit-svg-wrap">
+          <svg width="210" height="200" viewBox="0 0 210 200" xmlns="http://www.w3.org/2000/svg" style="font-family:'Share Tech Mono',monospace;">
+            <rect x="10" y="60" width="90" height="120" rx="5" fill="#1a2e1a" stroke="#2ea043" stroke-width="1.5"/>
+            <text x="55" y="78" text-anchor="middle" font-size="7" fill="#3fb950">ARDUINO UNO</text>
+            <rect x="10" y="84" width="8" height="6" rx="1" fill="#58a6ff"/>
+            <text x="20" y="90" font-size="7" fill="#8b949e">5V</text>
+            <rect x="10" y="96" width="8" height="6" rx="1" fill="#333"/>
+            <text x="20" y="102" font-size="7" fill="#8b949e">GND</text>
+            <rect x="10" y="108" width="8" height="6" rx="1" fill="#e3b341"/>
+            <text x="20" y="114" font-size="7" fill="#8b949e">D2</text>
+            <rect x="80" y="60" width="20" height="12" rx="2" fill="#30363d" stroke="#484f58" stroke-width="0.5"/>
+            <text x="90" y="69" text-anchor="middle" font-size="6" fill="#8b949e">USB</text>
+            <rect x="25" y="130" width="50" height="36" rx="3" fill="#21262d" stroke="#30363d" stroke-width="1"/>
+            <text x="50" y="151" text-anchor="middle" font-size="6" fill="#8b949e">ATmega328P</text>
+            <rect x="140" y="70" width="55" height="80" rx="4" fill="#1a1e2e" stroke="#58a6ff" stroke-width="1.5"/>
+            <text x="167" y="90" text-anchor="middle" font-size="8" fill="#79c0ff">DHT22</text>
+            <rect x="148" y="100" width="5" height="40" rx="1" fill="#e3b341"/>
+            <rect x="159" y="100" width="5" height="40" rx="1" fill="#30363d"/>
+            <rect x="170" y="100" width="5" height="40" rx="1" fill="#30363d"/>
+            <rect x="181" y="100" width="5" height="40" rx="1" fill="#58a6ff"/>
+            <text x="150" y="148" text-anchor="middle" font-size="6" fill="#e3b341">DA</text>
+            <text x="162" y="148" text-anchor="middle" font-size="6" fill="#8b949e">NC</text>
+            <text x="173" y="148" text-anchor="middle" font-size="6" fill="#8b949e">GN</text>
+            <text x="184" y="148" text-anchor="middle" font-size="6" fill="#58a6ff">VC</text>
+            <line x1="18" y1="87" x2="18" y2="158" stroke="#58a6ff" stroke-width="1.5" stroke-dasharray="3,2"/>
+            <line x1="18" y1="158" x2="183" y2="158" stroke="#58a6ff" stroke-width="1.5" stroke-dasharray="3,2"/>
+            <line x1="183" y1="140" x2="183" y2="158" stroke="#58a6ff" stroke-width="1.5"/>
+            <line x1="14" y1="99" x2="14" y2="170" stroke="#555" stroke-width="1.5" stroke-dasharray="3,2"/>
+            <line x1="14" y1="170" x2="172" y2="170" stroke="#555" stroke-width="1.5" stroke-dasharray="3,2"/>
+            <line x1="172" y1="140" x2="172" y2="170" stroke="#555" stroke-width="1.5"/>
+            <line x1="18" y1="111" x2="18" y2="180" stroke="#e3b341" stroke-width="1.5" stroke-dasharray="3,2"/>
+            <line x1="18" y1="180" x2="151" y2="180" stroke="#e3b341" stroke-width="1.5" stroke-dasharray="3,2"/>
+            <line x1="151" y1="140" x2="151" y2="180" stroke="#e3b341" stroke-width="1.5"/>
+            <rect x="10" y="185" width="8" height="4" fill="#58a6ff"/>
+            <text x="20" y="190" font-size="6" fill="#8b949e">VCC</text>
+            <rect x="50" y="185" width="8" height="4" fill="#555"/>
+            <text x="60" y="190" font-size="6" fill="#8b949e">GND</text>
+            <rect x="90" y="185" width="8" height="4" fill="#e3b341"/>
+            <text x="100" y="190" font-size="6" fill="#8b949e">Data</text>
+          </svg>
+        </div>
+      </div>
+      <div class="slider-section">
+        <div class="panel-label">Sensor input override</div>
+        <div class="slider-row">
+          <label>Temperature <span id="tLabel">28 °C</span></label>
+          <input type="range" id="tempSlider" min="-10" max="60" value="28" step="1"/>
+        </div>
+        <div class="slider-row">
+          <label>Humidity <span id="hLabel">55 %</span></label>
+          <input type="range" id="humSlider" min="0" max="100" value="55" step="1"/>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-start" id="btnStart" onclick="startSim()">▶ Start</button>
+        <button class="btn btn-stop" id="btnStop" onclick="stopSim()" style="display:none">■ Stop</button>
+        <button class="btn btn-clear" onclick="clearLog()">✕ Clear</button>
+      </div>
+    </div>
+ 
+    <div class="right-panel">
+      <div class="gauges-row">
+        <div class="gauge-card">
+          <span class="gauge-label">Temperature</span>
+          <span class="gauge-value" id="gTemp" style="color:#ffa657">—</span>
+          <span class="gauge-unit">°C</span>
+          <div class="gauge-bar"><div class="gauge-fill" id="gTempBar" style="width:0%;background:#ffa657"></div></div>
+          <span class="hi-badge hi-comfort" id="hiBadge" style="display:none">Comfortable</span>
+        </div>
+        <div class="gauge-card">
+          <span class="gauge-label">Humidity</span>
+          <span class="gauge-value" id="gHum" style="color:#56d364">—</span>
+          <span class="gauge-unit">%</span>
+          <div class="gauge-bar"><div class="gauge-fill" id="gHumBar" style="width:0%;background:#56d364"></div></div>
+        </div>
+        <div class="gauge-card">
+          <span class="gauge-label">Heat Index</span>
+          <span class="gauge-value" id="gHI" style="color:#79c0ff">—</span>
+          <span class="gauge-unit">°C</span>
+          <div class="gauge-bar"><div class="gauge-fill" id="gHIBar" style="width:0%;background:#79c0ff"></div></div>
+        </div>
+      </div>
+      <div class="chart-area">
+        <div class="panel-label">Live graph — last 20 readings</div>
+        <canvas id="chartCanvas" height="90"></canvas>
+      </div>
+      <div class="serial-wrap">
+        <div class="serial-header">
+          <div><span class="dot off" id="connDot"></span><span class="panel-label" style="display:inline;letter-spacing:1px">Serial Monitor</span></div>
+          <span class="baud-info">9600 baud</span>
+        </div>
+        <div id="serialLog">
+          <div class="log-line"><span class="log-time">—</span><span class="log-text" style="color:#484f58">Waiting for simulation to start... <span class="cursor"></span></span></div>
+        </div>
+        <!-- Mobile controls -->
+        <div class="btn-row" style="padding:12px 14px;border-top:1px solid #30363d;display:none;" id="mobileControls">
+          <button class="btn btn-start" id="btnStartM" onclick="startSim()">▶ Start</button>
+          <button class="btn btn-stop" id="btnStopM" onclick="stopSim()" style="display:none">■ Stop</button>
+          <button class="btn btn-clear" onclick="clearLog()">✕ Clear</button>
+        </div>
+        <div style="padding:0 14px 12px;display:none;" id="mobileSliders">
+          <div class="slider-row" style="margin-bottom:10px;">
+            <label>Temperature <span id="tLabelM">28 °C</span></label>
+            <input type="range" id="tempSliderM" min="-10" max="60" value="28" step="1"/>
+          </div>
+          <div class="slider-row">
+            <label>Humidity <span id="hLabelM">55 %</span></label>
+            <input type="range" id="humSliderM" min="0" max="100" value="55" step="1"/>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+ 
+<script>
+var simInterval=null,running=false,tick=0,startTime=null;
+var histTemp=[],histHum=[],histHI=[];
+var isMobile=window.innerWidth<=600;
+ 
+if(isMobile){
+  document.getElementById('mobileControls').style.display='flex';
+  document.getElementById('mobileSliders').style.display='block';
+}
+ 
+var tempSlider=document.getElementById('tempSlider');
+var humSlider=document.getElementById('humSlider');
+var tempSliderM=document.getElementById('tempSliderM');
+var humSliderM=document.getElementById('humSliderM');
+ 
+function syncSliders(src,dest,labelId,unit){
+  document.getElementById(labelId).textContent=src.value+' '+unit;
+  dest.value=src.value;
+}
+tempSlider.addEventListener('input',function(){syncSliders(this,tempSliderM,'tLabel','°C');});
+humSlider.addEventListener('input',function(){syncSliders(this,humSliderM,'hLabel','%');});
+tempSliderM.addEventListener('input',function(){syncSliders(this,tempSlider,'tLabelM','°C');});
+humSliderM.addEventListener('input',function(){syncSliders(this,humSlider,'hLabelM','%');});
+ 
+function getBaseTemp(){return parseFloat(isMobile?tempSliderM.value:tempSlider.value);}
+function getBaseHum(){return parseFloat(isMobile?humSliderM.value:humSlider.value);}
+ 
+function heatIndex(T,H){
+  if(T<27)return T;
+  var c=[-8.78469475556,1.61139411,2.33854883889,-0.14611605,-0.012308094,-0.0164248277778,0.002211732,0.00072546,-0.000003582];
+  var hi=c[0]+c[1]*T+c[2]*H+c[3]*T*H+c[4]*T*T+c[5]*H*H+c[6]*T*T*H+c[7]*T*H*H+c[8]*T*T*H*H;
+  return Math.round(hi*10)/10;
+}
+function getTime(){
+  if(!startTime)return'00:00';
+  var s=Math.floor((Date.now()-startTime)/1000);
+  return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
+}
+function noise(base,amt){return Math.round((base+(Math.random()-0.5)*amt)*10)/10;}
+ 
+function addLogLine(html){
+  var log=document.getElementById('serialLog');
+  var line=document.createElement('div');
+  line.className='log-line';
+  line.innerHTML='<span class="log-time">'+getTime()+'</span><span class="log-text">'+html+'</span>';
+  log.appendChild(line);
+  log.scrollTop=log.scrollHeight;
+}
+ 
+function updateGauges(t,h,hi){
+  document.getElementById('gTemp').textContent=t.toFixed(1);
+  document.getElementById('gHum').textContent=h.toFixed(1);
+  document.getElementById('gHI').textContent=hi.toFixed(1);
+  document.getElementById('gTempBar').style.width=Math.max(0,Math.min(100,((t+10)/70)*100))+'%';
+  document.getElementById('gHumBar').style.width=Math.max(0,Math.min(100,h))+'%';
+  document.getElementById('gHIBar').style.width=Math.max(0,Math.min(100,((hi+10)/70)*100))+'%';
+  var badge=document.getElementById('hiBadge');
+  badge.style.display='inline-block';
+  if(hi<27){badge.className='hi-badge hi-comfort';badge.textContent='Comfortable';}
+  else if(hi<35){badge.className='hi-badge hi-moderate';badge.textContent='Moderate';}
+  else{badge.className='hi-badge hi-hot';badge.textContent='Hot / Caution';}
+}
+ 
+function drawChart(){
+  var canvas=document.getElementById('chartCanvas');
+  var W=canvas.offsetWidth||380,H=90;
+  canvas.width=W;canvas.height=H;
+  var ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  if(histTemp.length<2)return;
+  var pad={l:28,r:8,t:6,b:16};
+  var cw=W-pad.l-pad.r,ch=H-pad.t-pad.b;
+  var allVals=histTemp.concat(histHum);
+  var minV=Math.min.apply(null,allVals)-5;
+  var maxV=Math.max.apply(null,allVals)+5;
+  if(maxV-minV<10)maxV=minV+10;
+  function xOf(i){return pad.l+(i/(histTemp.length-1))*cw;}
+  function yOf(v){return pad.t+ch-((v-minV)/(maxV-minV))*ch;}
+  ctx.strokeStyle='#21262d';ctx.lineWidth=0.5;
+  for(var g=0;g<4;g++){
+    var y=pad.t+(g/3)*ch;
+    ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();
+    ctx.fillStyle='#484f58';ctx.font='9px monospace';
+    ctx.fillText(Math.round(maxV-(g/3)*(maxV-minV)),0,y+3);
+  }
+  function drawLine(data,color){
+    ctx.beginPath();ctx.strokeStyle=color;ctx.lineWidth=1.5;
+    for(var i=0;i<data.length;i++){if(i===0)ctx.moveTo(xOf(i),yOf(data[i]));else ctx.lineTo(xOf(i),yOf(data[i]));}
+    ctx.stroke();
+    var lx=xOf(data.length-1),ly=yOf(data[data.length-1]);
+    ctx.beginPath();ctx.arc(lx,ly,3,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();
+  }
+  drawLine(histTemp,'#ffa657');
+  drawLine(histHum,'#56d364');
+  ctx.fillStyle='#ffa657';ctx.fillRect(pad.l,H-10,20,2);
+  ctx.fillStyle='#8b949e';ctx.font='8px monospace';ctx.fillText('Temp°C',pad.l+24,H-7);
+  ctx.fillStyle='#56d364';ctx.fillRect(pad.l+80,H-10,20,2);
+  ctx.fillText('Hum%',pad.l+104,H-7);
+}
+ 
+function doTick(){
+  tick++;
+  var t=noise(getBaseTemp(),0.6);
+  var h=Math.max(0,Math.min(100,noise(getBaseHum(),1.2)));
+  var hi=heatIndex(t,h);
+  histTemp.push(t);histHum.push(h);histHI.push(hi);
+  if(histTemp.length>20){histTemp.shift();histHum.shift();histHI.shift();}
+  updateGauges(t,h,hi);
+  drawChart();
+  addLogLine('<span class="kw">Temperature:</span> <span class="val-temp">'+t.toFixed(1)+'</span> <span class="sym">°C  |  </span><span class="kw">Humidity:</span> <span class="val-hum">'+h.toFixed(1)+'</span> <span class="sym">%</span>');
+  if(t>40)addLogLine('<span style="color:#f85149">⚠ High temperature alert: '+t.toFixed(1)+'°C</span>');
+  if(h>90)addLogLine('<span style="color:#e3b341">⚠ High humidity: '+h.toFixed(1)+'%</span>');
+}
+ 
+function setButtons(state){
+  ['btnStart','btnStartM'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display=state?'none':'block';});
+  ['btnStop','btnStopM'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display=state?'block':'none';});
+}
+ 
+function startSim(){
+  if(running)return;
+  running=true;startTime=Date.now();tick=0;histTemp=[];histHum=[];histHI=[];
+  document.getElementById('statusPill').textContent='● RUNNING';
+  document.getElementById('statusPill').className='status-pill running';
+  document.getElementById('connDot').className='dot';
+  setButtons(true);
+  document.getElementById('serialLog').innerHTML='';
+  addLogLine('<span style="color:#3fb950">Simulation started. DHT22 initialized on pin D2.</span>');
+  addLogLine('<span style="color:#3fb950">Serial monitor @ 9600 baud — reading every 2s</span>');
+  doTick();
+  simInterval=setInterval(doTick,2000);
+}
+ 
+function stopSim(){
+  if(!running)return;
+  running=false;clearInterval(simInterval);simInterval=null;
+  document.getElementById('statusPill').textContent='● IDLE';
+  document.getElementById('statusPill').className='status-pill idle';
+  document.getElementById('connDot').className='dot off';
+  setButtons(false);
+  addLogLine('<span style="color:#f85149">Simulation stopped. Total readings: '+tick+'</span>');
+}
+ 
+function clearLog(){
+  document.getElementById('serialLog').innerHTML='';
+  if(!running)document.getElementById('serialLog').innerHTML='<div class="log-line"><span class="log-time">—</span><span class="log-text" style="color:#484f58">Waiting for simulation to start... <span class="cursor"></span></span></div>';
+}
+ 
+window.addEventListener('resize',function(){isMobile=window.innerWidth<=600;drawChart();});
+</script>
+</body>
+</html>

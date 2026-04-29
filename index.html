@@ -133,7 +133,7 @@ input[type=range]{width:100%;accent-color:#58a6ff;height:4px;cursor:pointer;}
         <button class="btn btn-clear" onclick="clearLog()">✕ Clear</button>
       </div>
     </div>
- 
+
     <div class="right-panel">
       <div class="gauges-row">
         <div class="gauge-card">
@@ -188,22 +188,22 @@ input[type=range]{width:100%;accent-color:#58a6ff;height:4px;cursor:pointer;}
     </div>
   </div>
 </div>
- 
+
 <script>
 var simInterval=null,running=false,tick=0,startTime=null;
 var histTemp=[],histHum=[],histHI=[];
 var isMobile=window.innerWidth<=600;
- 
+
 if(isMobile){
   document.getElementById('mobileControls').style.display='flex';
   document.getElementById('mobileSliders').style.display='block';
 }
- 
+
 var tempSlider=document.getElementById('tempSlider');
 var humSlider=document.getElementById('humSlider');
 var tempSliderM=document.getElementById('tempSliderM');
 var humSliderM=document.getElementById('humSliderM');
- 
+
 function syncSliders(src,dest,labelId,unit){
   document.getElementById(labelId).textContent=src.value+' '+unit;
   dest.value=src.value;
@@ -212,10 +212,10 @@ tempSlider.addEventListener('input',function(){syncSliders(this,tempSliderM,'tLa
 humSlider.addEventListener('input',function(){syncSliders(this,humSliderM,'hLabel','%');});
 tempSliderM.addEventListener('input',function(){syncSliders(this,tempSlider,'tLabelM','°C');});
 humSliderM.addEventListener('input',function(){syncSliders(this,humSlider,'hLabelM','%');});
- 
+
 function getBaseTemp(){return parseFloat(isMobile?tempSliderM.value:tempSlider.value);}
 function getBaseHum(){return parseFloat(isMobile?humSliderM.value:humSlider.value);}
- 
+
 function heatIndex(T,H){
   if(T<27)return T;
   var c=[-8.78469475556,1.61139411,2.33854883889,-0.14611605,-0.012308094,-0.0164248277778,0.002211732,0.00072546,-0.000003582];
@@ -228,7 +228,7 @@ function getTime(){
   return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');
 }
 function noise(base,amt){return Math.round((base+(Math.random()-0.5)*amt)*10)/10;}
- 
+
 function addLogLine(html){
   var log=document.getElementById('serialLog');
   var line=document.createElement('div');
@@ -237,7 +237,7 @@ function addLogLine(html){
   log.appendChild(line);
   log.scrollTop=log.scrollHeight;
 }
- 
+
 function updateGauges(t,h,hi){
   document.getElementById('gTemp').textContent=t.toFixed(1);
   document.getElementById('gHum').textContent=h.toFixed(1);
@@ -251,7 +251,7 @@ function updateGauges(t,h,hi){
   else if(hi<35){badge.className='hi-badge hi-moderate';badge.textContent='Moderate';}
   else{badge.className='hi-badge hi-hot';badge.textContent='Hot / Caution';}
 }
- 
+
 function drawChart(){
   var canvas=document.getElementById('chartCanvas');
   var W=canvas.offsetWidth||380,H=90;
@@ -288,7 +288,7 @@ function drawChart(){
   ctx.fillStyle='#56d364';ctx.fillRect(pad.l+80,H-10,20,2);
   ctx.fillText('Hum%',pad.l+104,H-7);
 }
- 
+
 function doTick(){
   tick++;
   var t=noise(getBaseTemp(),0.6);
@@ -302,12 +302,12 @@ function doTick(){
   if(t>40)addLogLine('<span style="color:#f85149">⚠ High temperature alert: '+t.toFixed(1)+'°C</span>');
   if(h>90)addLogLine('<span style="color:#e3b341">⚠ High humidity: '+h.toFixed(1)+'%</span>');
 }
- 
+
 function setButtons(state){
   ['btnStart','btnStartM'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display=state?'none':'block';});
   ['btnStop','btnStopM'].forEach(function(id){var el=document.getElementById(id);if(el)el.style.display=state?'block':'none';});
 }
- 
+
 function startSim(){
   if(running)return;
   running=true;startTime=Date.now();tick=0;histTemp=[];histHum=[];histHI=[];
@@ -321,7 +321,7 @@ function startSim(){
   doTick();
   simInterval=setInterval(doTick,2000);
 }
- 
+
 function stopSim(){
   if(!running)return;
   running=false;clearInterval(simInterval);simInterval=null;
@@ -331,12 +331,12 @@ function stopSim(){
   setButtons(false);
   addLogLine('<span style="color:#f85149">Simulation stopped. Total readings: '+tick+'</span>');
 }
- 
+
 function clearLog(){
   document.getElementById('serialLog').innerHTML='';
   if(!running)document.getElementById('serialLog').innerHTML='<div class="log-line"><span class="log-time">—</span><span class="log-text" style="color:#484f58">Waiting for simulation to start... <span class="cursor"></span></span></div>';
 }
- 
+
 window.addEventListener('resize',function(){isMobile=window.innerWidth<=600;drawChart();});
 </script>
 </body>
